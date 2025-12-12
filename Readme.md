@@ -578,17 +578,6 @@ Tests:       3 passed, 3 total
 - Follow RESTful API conventions
 - Add JSDoc comments for complex functions
 
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
-
-## 📄 License
-
-This project is licensed under the ISC License.
 
 ## 👤 Author
 
@@ -597,12 +586,7 @@ This project is licensed under the ISC License.
 - GitHub: [@Abhi-Jeeet](https://github.com/Abhi-Jeeet)
 - Repository: [hr-leave-management-backend](https://github.com/Abhi-Jeeet/hr-leave-management-backend)
 
-## 🙏 Acknowledgments
 
-- Express.js for the robust web framework
-- MongoDB and Mongoose for database management
-- JWT for secure authentication
-- Jest and Supertest for testing capabilities
 
 ---
 
