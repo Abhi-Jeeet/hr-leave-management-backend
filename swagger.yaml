@@ -1,0 +1,688 @@
+openapi: 3.0.1
+info:
+  title: HR Leave Management API
+  description: |
+    Complete HR Leave Management system with role-based access control.
+    
+    **Roles:**
+    - **Employee**: Can create, view own leaves, and delete pending leaves
+    - **Manager**: Can view all leaves and approve/reject leave requests
+    
+    **Authentication:** All protected endpoints require Bearer token in Authorization header
+  version: "1.0.0"
+  contact:
+    name: API Support
+servers:
+  - url: http://localhost:5000
+    description: Development server
+tags:
+  - name: Authentication
+    description: User registration, login, and profile management
+  - name: Leaves
+    description: Leave application management (employee and manager operations)
+paths:
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Register a new user
+      description: Create a new user account with employee or manager role. Default role is employee.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              employee:
+                summary: Register as employee
+                value:
+                  name: "John Doe"
+                  email: "john@example.com"
+                  password: "password123"
+                  role: "employee"
+              manager:
+                summary: Register as manager
+                value:
+                  name: "Jane Manager"
+                  email: "jane@example.com"
+                  password: "securepass456"
+                  role: "manager"
+      responses:
+        '201':
+          description: User registered successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                user:
+                  id: "507f1f77bcf86cd799439011"
+                  name: "John Doe"
+                  email: "john@example.com"
+                  role: "employee"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "\"password\" length must be at least 6 characters long"
+        '409':
+          description: Email already registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Email already registered"
+  /api/auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User login
+      description: Authenticate user and receive JWT token for API access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            example:
+              email: "john@example.com"
+              password: "password123"
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+              example:
+                token: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                user:
+                  id: "507f1f77bcf86cd799439011"
+                  name: "John Doe"
+                  email: "john@example.com"
+                  role: "employee"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Invalid credentials"
+  /api/auth/me:
+    get:
+      tags:
+        - Authentication
+      summary: Get current user profile
+      description: Retrieve authenticated user's profile information
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/User'
+              example:
+                user:
+                  _id: "507f1f77bcf86cd799439011"
+                  name: "John Doe"
+                  email: "john@example.com"
+                  role: "employee"
+                  createdAt: "2025-12-01T10:00:00.000Z"
+                  updatedAt: "2025-12-01T10:00:00.000Z"
+        '401':
+          description: Unauthorized - Invalid or missing token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Not authorized"
+  /api/leaves:
+    post:
+      tags:
+        - Leaves
+      summary: Create leave application (Employee only)
+      description: Employee can apply for leave by specifying start date, end date, and reason
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLeaveRequest'
+            example:
+              startDate: "2025-12-20"
+              endDate: "2025-12-25"
+              reason: "Family vacation"
+      responses:
+        '201':
+          description: Leave created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Leave'
+              example:
+                _id: "507f1f77bcf86cd799439012"
+                employee: "507f1f77bcf86cd799439011"
+                startDate: "2025-12-20T00:00:00.000Z"
+                endDate: "2025-12-25T00:00:00.000Z"
+                reason: "Family vacation"
+                status: "pending"
+                managerComment: ""
+                createdAt: "2025-12-11T10:00:00.000Z"
+                updatedAt: "2025-12-11T10:00:00.000Z"
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidDates:
+                  summary: Invalid date range
+                  value:
+                    message: "endDate cannot be before startDate"
+                validationError:
+                  summary: Field validation error
+                  value:
+                    message: "\"reason\" length must be at least 3 characters long"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Only employees can create leaves
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Access denied"
+    get:
+      tags:
+        - Leaves
+      summary: Get all leaves (Manager only)
+      description: Manager can view all leave applications, optionally filtered by status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+          description: Filter leaves by status
+          example: pending
+      responses:
+        '200':
+          description: List of all leaves retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LeaveWithEmployee'
+              example:
+                - _id: "507f1f77bcf86cd799439012"
+                  employee:
+                    _id: "507f1f77bcf86cd799439011"
+                    name: "John Doe"
+                    email: "john@example.com"
+                    role: "employee"
+                  startDate: "2025-12-20T00:00:00.000Z"
+                  endDate: "2025-12-25T00:00:00.000Z"
+                  reason: "Family vacation"
+                  status: "pending"
+                  managerComment: ""
+                  createdAt: "2025-12-11T10:00:00.000Z"
+                  updatedAt: "2025-12-11T10:00:00.000Z"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Only managers can view all leaves
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Access denied"
+  /api/leaves/me:
+    get:
+      tags:
+        - Leaves
+      summary: Get my leave applications (Employee)
+      description: Employee can view their own leave applications
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: User's leave applications retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Leave'
+              example:
+                - _id: "507f1f77bcf86cd799439012"
+                  employee: "507f1f77bcf86cd799439011"
+                  startDate: "2025-12-20T00:00:00.000Z"
+                  endDate: "2025-12-25T00:00:00.000Z"
+                  reason: "Family vacation"
+                  status: "pending"
+                  managerComment: ""
+                  createdAt: "2025-12-11T10:00:00.000Z"
+                  updatedAt: "2025-12-11T10:00:00.000Z"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /api/leaves/{id}/status:
+    patch:
+      tags:
+        - Leaves
+      summary: Update leave status (Manager only)
+      description: Manager can approve or reject leave applications with optional comments
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Leave application ID (MongoDB ObjectId)
+          example: "507f1f77bcf86cd799439012"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStatusRequest'
+            examples:
+              approve:
+                summary: Approve leave
+                value:
+                  status: "approved"
+                  managerComment: "Approved for the requested dates"
+              reject:
+                summary: Reject leave
+                value:
+                  status: "rejected"
+                  managerComment: "Insufficient staffing during this period"
+      responses:
+        '200':
+          description: Leave status updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Leave'
+              example:
+                _id: "507f1f77bcf86cd799439012"
+                employee: "507f1f77bcf86cd799439011"
+                startDate: "2025-12-20T00:00:00.000Z"
+                endDate: "2025-12-25T00:00:00.000Z"
+                reason: "Family vacation"
+                status: "approved"
+                managerComment: "Approved for the requested dates"
+                createdAt: "2025-12-11T10:00:00.000Z"
+                updatedAt: "2025-12-11T12:30:00.000Z"
+        '400':
+          description: Invalid input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidId:
+                  summary: Invalid leave ID
+                  value:
+                    message: "Invalid id"
+                invalidStatus:
+                  summary: Invalid status value
+                  value:
+                    message: "Invalid status"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Only managers can update leave status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Leave not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Leave not found"
+  /api/leaves/{id}:
+    delete:
+      tags:
+        - Leaves
+      summary: Delete leave application (Employee only)
+      description: Employee can delete their own pending leave application
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+          description: Leave application ID (MongoDB ObjectId)
+          example: "507f1f77bcf86cd799439012"
+      responses:
+        '200':
+          description: Leave deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              example:
+                message: "Deleted"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              examples:
+                invalidId:
+                  summary: Invalid leave ID
+                  value:
+                    message: "Invalid id"
+                notPending:
+                  summary: Leave not pending
+                  value:
+                    message: "Only pending leaves can be deleted"
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '403':
+          description: Forbidden - Can only delete own leaves
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Not allowed"
+        '404':
+          description: Leave not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                message: "Leave not found"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token obtained from login or register endpoints
+  schemas:
+    RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: User's full name
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          description: User's email address (must be unique)
+          example: "john@example.com"
+        password:
+          type: string
+          minLength: 6
+          description: User's password (minimum 6 characters)
+          example: "password123"
+        role:
+          type: string
+          enum: [employee, manager]
+          default: employee
+          description: User role in the system
+          example: "employee"
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          description: User's email address
+          example: "john@example.com"
+        password:
+          type: string
+          description: User's password
+          example: "password123"
+    AuthResponse:
+      type: object
+      properties:
+        token:
+          type: string
+          description: JWT token for authentication
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        user:
+          type: object
+          properties:
+            id:
+              type: string
+              description: User's unique identifier
+              example: "507f1f77bcf86cd799439011"
+            name:
+              type: string
+              example: "John Doe"
+            email:
+              type: string
+              example: "john@example.com"
+            role:
+              type: string
+              enum: [employee, manager]
+              example: "employee"
+    User:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: User's unique identifier
+          example: "507f1f77bcf86cd799439011"
+        name:
+          type: string
+          example: "John Doe"
+        email:
+          type: string
+          format: email
+          example: "john@example.com"
+        role:
+          type: string
+          enum: [employee, manager]
+          example: "employee"
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-01T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-12-01T10:00:00.000Z"
+    CreateLeaveRequest:
+      type: object
+      required:
+        - startDate
+        - endDate
+        - reason
+      properties:
+        startDate:
+          type: string
+          format: date
+          description: Leave start date
+          example: "2025-12-20"
+        endDate:
+          type: string
+          format: date
+          description: Leave end date (must be >= startDate)
+          example: "2025-12-25"
+        reason:
+          type: string
+          minLength: 3
+          maxLength: 500
+          description: Reason for leave application
+          example: "Family vacation"
+    UpdateStatusRequest:
+      type: object
+      required:
+        - status
+      properties:
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          description: New status for the leave application
+          example: "approved"
+        managerComment:
+          type: string
+          description: Optional comment from manager
+          example: "Approved for the requested dates"
+    Leave:
+      type: object
+      properties:
+        _id:
+          type: string
+          description: Leave application unique identifier
+          example: "507f1f77bcf86cd799439012"
+        employee:
+          type: string
+          description: Employee ID who created the leave
+          example: "507f1f77bcf86cd799439011"
+        startDate:
+          type: string
+          format: date-time
+          example: "2025-12-20T00:00:00.000Z"
+        endDate:
+          type: string
+          format: date-time
+          example: "2025-12-25T00:00:00.000Z"
+        reason:
+          type: string
+          example: "Family vacation"
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          default: pending
+          example: "pending"
+        managerComment:
+          type: string
+          default: ""
+          example: ""
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-11T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-12-11T10:00:00.000Z"
+    LeaveWithEmployee:
+      type: object
+      properties:
+        _id:
+          type: string
+          example: "507f1f77bcf86cd799439012"
+        employee:
+          type: object
+          properties:
+            _id:
+              type: string
+              example: "507f1f77bcf86cd799439011"
+            name:
+              type: string
+              example: "John Doe"
+            email:
+              type: string
+              example: "john@example.com"
+            role:
+              type: string
+              example: "employee"
+        startDate:
+          type: string
+          format: date-time
+          example: "2025-12-20T00:00:00.000Z"
+        endDate:
+          type: string
+          format: date-time
+          example: "2025-12-25T00:00:00.000Z"
+        reason:
+          type: string
+          example: "Family vacation"
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+          example: "pending"
+        managerComment:
+          type: string
+          example: ""
+        createdAt:
+          type: string
+          format: date-time
+          example: "2025-12-11T10:00:00.000Z"
+        updatedAt:
+          type: string
+          format: date-time
+          example: "2025-12-11T10:00:00.000Z"
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Error message describing what went wrong
+          example: "Invalid credentials"
