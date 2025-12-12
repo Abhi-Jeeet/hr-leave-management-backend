@@ -68,6 +68,6 @@ exports.deleteLeave = async (req, res) => {
   if (leave.employee.toString() !== req.user.sub) return res.status(403).json({ message: 'Not allowed' });
   if (leave.status !== 'pending') return res.status(400).json({ message: 'Only pending leaves can be deleted' });
 
-  await leave.remove();
+  await leave.deleteOne();
   res.json({ message: 'Deleted' });
 };
